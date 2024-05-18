@@ -1,0 +1,8 @@
+name: REChest
+version: '${version}'
+main: com.zjziizjz.rechest.REChest
+author: Zjziizjz
+commands:
+  addrefreshitem:
+    description: Add a new refresh item.
+    usage: /addrefreshitem <x> <y> <z> <material> <refreshTime> <refreshProbability>
