@@ -5,4 +5,5 @@ author: Zjziizjz
 commands:
   addrefreshitem:
     description: Add a new refresh item.
-    usage: /addrefreshitem <x> <y> <z> <material> <refreshTime> <refreshProbability>
+    usage: /addrefreshitem <x> <y> <z> <refreshTime> <refreshProbability>
+  iteminfo:

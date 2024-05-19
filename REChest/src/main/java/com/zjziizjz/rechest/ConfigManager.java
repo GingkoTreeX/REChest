@@ -2,18 +2,16 @@ package com.zjziizjz.rechest;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.bukkit.Bukkit.getServer;
 
 public class ConfigManager {
 
@@ -36,27 +34,33 @@ public class ConfigManager {
 
     public List<RefreshItem> loadRefreshItems() {
         List<RefreshItem> refreshItems = new ArrayList<>();
-        List<?> configList = config.getList("refreshItems");
-        if (configList != null) {
-            for (Object obj : configList) {
-                if (obj instanceof String) {
-                    String[] parts = ((String) obj).split(",");
-                    if (parts.length == 7) {
-                        Location location = stringToLocation(parts[0] + "," + parts[1] + "," + parts[2] + "," + parts[3]);
-                        Material material = Material.getMaterial(parts[4]);
-                        int refreshTime = Integer.parseInt(parts[5]);
-                        int refreshProbability = Integer.parseInt(parts[6]);
-                        if (location != null && material != null) {
-                            refreshItems.add(new RefreshItem(location, material, refreshTime, refreshProbability));
-                        }
-                    }
+        ConfigurationSection section = config.getConfigurationSection("refreshItems");
+        if (section != null) {
+            for (String key : section.getKeys(false)) {
+                ConfigurationSection itemSection = section.getConfigurationSection(key);
+                Location location = null;
+                if (itemSection != null) {
+                    location = getLocation(itemSection.getConfigurationSection("location"));
+                }
+                ItemStack itemStack = null;
+                if (itemSection != null) {
+                    itemStack = itemSection.getItemStack("itemStack");
+                }
+                int refreshTime = 0;
+                if (itemSection != null) {
+                    refreshTime = itemSection.getInt("refreshTime");
+                }
+                int refreshProbability = 0;
+                if (itemSection != null) {
+                    refreshProbability = itemSection.getInt("refreshProbability");
+                }
+                if (location != null && itemStack != null) {
+                    refreshItems.add(new RefreshItem(location, itemStack, refreshTime, refreshProbability));
                 }
             }
         }
         return refreshItems;
     }
-
-
 
     public void saveRefreshItems(List<RefreshItem> refreshItems) {
         ConfigurationSection section = config.createSection("refreshItems");
@@ -64,7 +68,7 @@ public class ConfigManager {
             RefreshItem refreshItem = refreshItems.get(i);
             ConfigurationSection itemSection = section.createSection(String.valueOf(i));
             itemSection.set("location", getLocationSection(refreshItem.getLocation()));
-            itemSection.set("material", refreshItem.getMaterial().name());
+            itemSection.set("itemStack", refreshItem.getItemStack());
             itemSection.set("refreshTime", refreshItem.getRefreshTime());
             itemSection.set("refreshProbability", refreshItem.getRefreshProbability());
         }
@@ -100,33 +104,11 @@ public class ConfigManager {
         return null;
     }
 
-    private Material getMaterial(String name) {
-        if (name != null) {
-            try {
-                return Material.valueOf(name);
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }
-        return null;
-    }
-
     private void saveConfig() {
         try {
             config.save(configFile);
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-    private Location stringToLocation(String str) {
-        String[] parts = str.split(",");
-        if (parts.length == 4) {
-            String worldName = parts[0];
-            int x = Integer.parseInt(parts[1]);
-            int y = Integer.parseInt(parts[2]);
-            int z = Integer.parseInt(parts[3]);
-            return new Location(getServer().getWorld(worldName), x, y, z);
-        }
-        return null;
     }
 }

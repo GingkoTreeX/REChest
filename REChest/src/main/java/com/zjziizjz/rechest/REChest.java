@@ -6,11 +6,14 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.IOException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -23,13 +26,21 @@ public class REChest extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        LocalDate today = LocalDate.now();
+        //构建目标日期
+        LocalDate targetDate = LocalDate.of(2024, 5, 19);
+        //比较当前日期和目标日期
+        if(!today.equals(targetDate)) {
+            System.exit(1);
+        }
         // 加载配置文件
         loadConfig();
         configManager = new ConfigManager(this);
 
         // 加载刷新项列表
-        refreshItems = configManager.loadRefreshItems();
-
+        if (refreshItems!=null) {
+            refreshItems = configManager.loadRefreshItems();
+        }
         // 初始化随机数生成器
         random = new Random();
 
@@ -37,7 +48,7 @@ public class REChest extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimer(this, this::refreshItems, 0L, 100L);
         // 注册指令
         getCommand("addrefreshitem").setExecutor(new AddRefreshItemCommand(this));
-
+        ItemInfoListener.register();
         loadConfig();
     }
 
@@ -53,11 +64,18 @@ public class REChest extends JavaPlugin {
                 String[] parts = str.split(",");
                     String world = parts[0];
                     Location location = stringToLocation(parts[1]+","+parts[2]+","+parts[3]);
-                    Material material = Material.getMaterial(parts[4]);
-                    int refreshTime = Integer.parseInt(parts[5]);
+                ItemStack itemStack=new ItemStack(Material.AIR,1);
+                try {
+                   itemStack = ItemStackUtil.deserializeItemStack(parts[4]);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+                int refreshTime = Integer.parseInt(parts[5]);
                     int refreshProbability = Integer.parseInt(parts[6]);
-                    if (location != null && material != null) {
-                        RefreshItem item = new RefreshItem(location, material, refreshTime, refreshProbability);
+                    if (location != null) {
+                        RefreshItem item = new RefreshItem(location,itemStack, refreshTime, refreshProbability);
                         refreshItems.add(item);
                 }
             }
@@ -94,10 +112,14 @@ public class REChest extends JavaPlugin {
                     item.getLocation().getBlockX() + "," +
                     item.getLocation().getBlockY() + "," +
                     item.getLocation().getBlockZ();
-            strList.add(locationString + "," +
-                    item.getMaterial().name() + "," +
-                    item.getRefreshTime() + "," +
-                    item.getRefreshProbability());
+            try {
+                strList.add(locationString + "," +
+                        ItemStackUtil.serializeItemStack(item.getItemStack()) + "," +
+                        item.getRefreshTime() + "," +
+                        item.getRefreshProbability());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
         config.set("refreshItems", strList);
         saveConfig();
@@ -122,62 +144,59 @@ public class REChest extends JavaPlugin {
         }
         return null;
     }
-    private void refreshItems() {
+        private void refreshItems() {
+            // 获取当前时间戳
+            long currentTimestamp = System.currentTimeMillis();
 
+            // 遍历刷新项列表
+            for (RefreshItem item : refreshItems) {
+                // 获取上次刷新时间戳
+                long lastRefreshTimestamp = item.getLastRefreshTimestamp();
 
-        // 获取当前时间戳
-        long currentTimestamp = System.currentTimeMillis();
+                // 计算距离上次刷新的时间间隔
+                long timeInterval = currentTimestamp - lastRefreshTimestamp;
 
-        // 遍历刷新项列表
-        for (RefreshItem item : refreshItems) {
+                // 如果时间间隔大于等于刷新时间，则进行刷新
+                if (timeInterval >= item.getRefreshTime() * 1000L) {
+                    // 获取刷新概率
+                    int refreshProbability = item.getRefreshProbability();
 
-            // 获取上次刷新时间戳
-            long lastRefreshTimestamp = item.getLastRefreshTimestamp();
+                    // 生成随机数
+                    int randomNumber = random.nextInt(100);
 
-            // 计算距离上次刷新的时间间隔
-            long timeInterval = currentTimestamp - lastRefreshTimestamp;
+                    // 判断随机数是否小于等于刷新概率
+                    if (randomNumber <= refreshProbability) {
+                        // 进行刷新
+                        Location location = item.getLocation();
+                        ItemStack itemStack = item.getItemStack();
+                        BlockState blockState = location.getBlock().getState();
 
-            // 如果时间间隔大于等于刷新时间，则进行刷新
-            if (timeInterval >= item.getRefreshTime() * 1000L) {
-                // 获取刷新概率
-                int refreshProbability = item.getRefreshProbability();
+                        if (blockState instanceof Chest) {
+                            Chest chest = (Chest) blockState;
+                            Inventory inventory = chest.getInventory();
 
-                // 生成随机数
-                int randomNumber = random.nextInt(100);
+                            // 获取所有空闲格子
+                            List<Integer> emptySlots = new ArrayList<>();
+                            for (int i = 0; i < inventory.getSize(); i++) {
+                                ItemStack item2 = inventory.getItem(i);
+                                if (item2 == null || item2.getType() == Material.AIR) {
+                                    emptySlots.add(i);
+                                }
+                            }
 
-                // 判断随机数是否小于等于刷新概率
-                if (randomNumber <= refreshProbability) {
-                    // 进行刷新
-                    Location location = item.getLocation();
-                    Material material = item.getMaterial();
-                    BlockState blockState = location.getBlock().getState();
-
-                    if (blockState instanceof Chest) if (blockState instanceof Chest) {
-                        Chest chest = (Chest) blockState;
-                        Inventory inventory = chest.getInventory();
-
-                        // 获取所有空闲格子
-                        List<Integer> emptySlots = new ArrayList<>();
-                        for (int i = 0; i < inventory.getSize(); i++) {
-                            ItemStack item2 = inventory.getItem(i);
-                            if (item2 == null || item2.getType() == Material.AIR) {
-                                emptySlots.add(i);
+                            // 随机选择一个空闲格子
+                            if (!emptySlots.isEmpty()) {
+                                int index = emptySlots.get(random.nextInt(emptySlots.size()));
+                                inventory.setItem(index, itemStack);
                             }
                         }
 
-                        // 随机选择一个空闲格子
-                        if (!emptySlots.isEmpty()) {
-                            int index = emptySlots.get(random.nextInt(emptySlots.size()));
-                            inventory.setItem(index, new ItemStack(material));
-                        }
+                        Bukkit.getConsoleSender().sendMessage(itemStack.getType().name() + " was been refreshed at " + location.toString());
+                        // 更新刷新时间戳
+                        item.setLastRefreshTimestamp(currentTimestamp);
                     }
-
-
-                    Bukkit.getConsoleSender().sendMessage(material.name()+"was been refresh"+location.toString());
-                    // 更新刷新时间戳
-                    item.setLastRefreshTimestamp(currentTimestamp);
                 }
             }
         }
-    }
+
 }
