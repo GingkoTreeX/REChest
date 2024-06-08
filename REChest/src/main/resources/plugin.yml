@@ -1,6 +1,6 @@
 name: REChest
 version: '${version}'
-main: com.zjziizjz.rechest.REChest
+main: com.GingkoTreeX.rechest.REChest
 author: Zjziizjz
 commands:
   addrefreshitem:
